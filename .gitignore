@@ -1,2 +1,3 @@
 
-/data/*
+data/*
+code/__pycache__/*
