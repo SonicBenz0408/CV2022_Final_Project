@@ -9,7 +9,7 @@ class NMELoss(nn.Module):
     def forward(self, x, y):
         dis = x - y
         dis = torch.sqrt(torch.sum(torch.pow(dis, 2), 2))
-        dis = torch.mean(dis) / 384
+        dis = torch.sum(torch.mean(dis, 1)) / 384
 
         return dis
 
@@ -25,11 +25,11 @@ class WingLoss(nn.Module):
         # (N, 68, 2)
         dis = x - y
         dis = torch.sqrt(torch.sum(torch.pow(dis, 2), 2))
-        dis = torch.mean(dis)
-        if dis < self.eps:
-            loss = self.gamma * torch.log(1 + dis/self.eps)
-        else:
-            loss = dis - (self.gamma - self.gamma * np.log(1 + self.gamma/self.eps))
+
+        small = torch.sum(self.gamma * torch.log(1 + dis[dis < self.gamma]/self.eps))
+        large = torch.sum(dis[dis >= self.gamma] - (self.gamma - self.gamma * np.log(1 + self.gamma/self.eps)))
+
+        loss = small + large
 
         return loss
         

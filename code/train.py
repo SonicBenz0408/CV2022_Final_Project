@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
 from dataset import Img_Dataset
-from network import FacialLandmark
+from network import FacialLandmark, PyramidNet
 from loss import WingLoss, NMELoss
 
 train_path = "./data/synthetics_train"
@@ -16,7 +16,8 @@ val_path = "./data/aflw_val"
 mean, std = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
 
 train_tfms = transforms.Compose([
-    transforms.ColorJitter(brightness=0.2, saturation=0.2),
+    transforms.ColorJitter(brightness=0.1, saturation=0.2, hue=0.2),
+    transforms.GaussianBlur(5),
     transforms.ToTensor(),
     transforms.Normalize(mean, std)
 ])
@@ -35,7 +36,7 @@ batch_size = 32
 learning_rate = 0.001
 max_epoch = 40
 
-save_path = "./log"
+save_path = "./log/MobileNetv2"
 
 os.makedirs(save_path, exist_ok=True)
 # Data loader
@@ -45,14 +46,15 @@ val_loader = DataLoader(val_set, batch_size=1, shuffle=False)
 print("Dataloader complete!")
 
 # Preparation
-model = FacialLandmark().cuda()
-optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+model = PyramidNet().cuda()
+optimizer = torch.optim.Adam([{"params":model.parameters(), "initial_lr": learning_rate}], lr=learning_rate)
+scheduler = torch.optim.lr_scheduler.StepLR(optimizer, len(train_loader)*5, 0.5)
+
 criterion = WingLoss()
-evaluation = NMELoss() 
+evaluation = NMELoss()
 
 train_loss_curve, val_loss_curve = [], []
 NME_curve = []
-
 print("Training Start!")
 for epoch in range(max_epoch):
 
@@ -72,6 +74,7 @@ for epoch in range(max_epoch):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+        scheduler.step()
 
     model.eval()
     NME_loss = 0.
@@ -93,7 +96,7 @@ for epoch in range(max_epoch):
     val_loss /= len(val_set)
     NME_loss /= len(val_set)
 
-    print(f'Epoch: {epoch+1}/{max_epoch}, Training loss: {train_loss:.4f}, Validation loss: {val_loss:.4f}, NME: {NME_loss:.4f}')
+    print(f'Epoch: {epoch+1}/{max_epoch}, Training loss: {train_loss:.4f}, Validation loss: {val_loss:.4f}, NME: {NME_loss*100:.2f}%')
 
     train_loss_curve.append(train_loss)
     val_loss_curve.append(val_loss)
