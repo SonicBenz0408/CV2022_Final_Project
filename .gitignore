@@ -1,4 +1,10 @@
-
+data/
 data/*
 code/__pycache__/*
 log/*
+log/
+output/test/
+output/test/*
+output/val/
+output/val/*
+output/solution.txt

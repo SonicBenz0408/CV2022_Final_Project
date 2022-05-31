@@ -1,74 +1,6 @@
-from turtle import forward
+from re import M
 import torch.nn as nn
 import torch
-
-class FacialLandmark(nn.Module):
-    def __init__(self):
-        super(FacialLandmark, self).__init__()
-        
-        # input: (3, 384, 384)
-
-        self.dim = 32
-        
-        #384
-        self.input_conv = nn.Sequential(
-            nn.Conv2d(in_channels=3, out_channels=self.dim, kernel_size=3, stride=2, padding=1),
-            nn.BatchNorm2d(self.dim),
-            nn.ReLU(inplace=True)
-        )
-        #192
-        self.conv1 = nn.Sequential(
-            nn.Conv2d(in_channels=self.dim, out_channels=self.dim*2, kernel_size=3, stride=2, padding=1),
-            nn.BatchNorm2d(self.dim*2),
-            nn.ReLU(inplace=True)
-        )
-        #96
-        self.conv2 = nn.Sequential(
-            nn.Conv2d(in_channels=self.dim*2, out_channels=self.dim*2, kernel_size=3, stride=2, padding=1),
-            nn.BatchNorm2d(self.dim*2),
-            nn.ReLU(inplace=True)
-        )
-        #48
-        self.pool1 = nn.MaxPool2d(2, 2)
-        
-        #24
-        self.conv3 = nn.Sequential(
-            nn.Conv2d(in_channels=self.dim*2, out_channels=self.dim*4, kernel_size=3, stride=2, padding=1),
-            nn.BatchNorm2d(self.dim*4),
-            nn.ReLU(inplace=True)
-        )
-        #12
-        self.conv4 = nn.Sequential(
-            nn.Conv2d(in_channels=self.dim*4, out_channels=self.dim*8, kernel_size=3, stride=2, padding=1),
-            #nn.BatchNorm2d(self.dim*8),
-            #nn.ReLU(inplace=True)
-        )
-
-        # (N, 256, 6, 6)
-
-        self.fc = nn.Sequential(
-            nn.Linear(256 * 6 * 6, 1024),
-            nn.BatchNorm1d(1024),
-            nn.ReLU(inplace=True),
-            nn.Linear(1024, 2 * 68)
-        )
-
-    def forward(self, input):
-        x = self.input_conv(input)
-        x = self.conv1(x)
-        x = self.conv2(x)
-        x = self.pool1(x)
-
-        x = self.conv3(x)
-        x = self.conv4(x)
-
-        x = x.view(-1, 256 * 6 * 6)
-
-        x = self.fc(x)
-        
-        out = torch.reshape(x, (x.shape[0], 68, 2))
-
-        return out
 
 class InvertedResidual(nn.Module):
     def __init__(self, inp, oup, stride, expand_ratio):
@@ -120,6 +52,14 @@ class PyramidNet(nn.Module):
         self.dim = 32
 
         # expand, out_channels, layer_num, stride
+        #self.mobile_config = [
+        #    [1, 24, 1, 1],
+        #    [2, 48, 1, 2],
+        #    [2, 48, 5, 2],
+        #    [2, 96, 1, 2],
+        #    [4, 192, 6, 2],
+        #    [2, 24, 1, 1]
+        #]
         self.mobile_config = [
             [1, 16, 1, 1],
             [2, 32, 1, 2],
@@ -149,10 +89,10 @@ class PyramidNet(nn.Module):
 
         self.feature_extractor = nn.Sequential(*self.feature_extractor)
 
-        # (N, 16, 12, 12)
+        # (N, 32, 12, 12)
         self.down1 = nn.Conv2d(in_channels=16, out_channels=32, kernel_size=3, stride=2, padding=1)
         
-        # (N, 32, 6, 6)
+        # (N, 64, 6, 6)
         self.down2 = nn.Sequential(
             nn.BatchNorm2d(32),
             nn.ReLU6(inplace=True),
@@ -161,8 +101,9 @@ class PyramidNet(nn.Module):
 
         # (N, 128, 1, 1)
         # 16 * 12 * 12 + 32 * 6 * 6 + 128
-        self.fc = nn.Linear(16 * 12 * 12 + 32 * 6 * 6 + 128, 2 * 68)
-
+        self.fc = nn.Sequential(
+            nn.Linear(16 * 12 * 12 + 32 * 6 * 6 + 128, 2 * 68),
+        )
 
     def forward(self, input):
         s1 = self.feature_extractor(input)

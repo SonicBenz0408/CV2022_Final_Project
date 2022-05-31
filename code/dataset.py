@@ -6,12 +6,16 @@ from PIL import Image
 import os
 
 class Img_Dataset(Dataset):
-    def __init__(self, data_path, transforms):
+    def __init__(self, data_path, transforms, have_anno=True):
         
-        with open(os.path.join(data_path, "annot.pkl"), "rb") as f:
-            annot = pickle.load(f)
-            self.names, self.feats= annot
-        
+        if have_anno:
+            with open(os.path.join(data_path, "annot.pkl"), "rb") as f:
+                annot = pickle.load(f)
+                self.names, self.feats= annot
+        else:
+            self.names = os.listdir(data_path)
+            self.feats = [[0.]] * len(self.names) 
+
         self.imgs = []
         for name in self.names:
             img = os.path.join(data_path, name)
