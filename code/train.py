@@ -10,6 +10,8 @@ from tqdm import tqdm
 from dataset import Img_Dataset
 from pyramid import PyramidNet
 from loss import WingLoss, NMELoss, WeightedL2Loss, CenterLoss
+from torchvision.transforms.functional import rotate
+from rotation import rotate_coord
 
 # fix random seeds for reproducibility
 SEED = 7414
@@ -25,8 +27,8 @@ val_path = "./data/aflw_val"
 mean, std = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
 
 train_tfms = transforms.Compose([
-    transforms.ColorJitter(brightness=0.1),#, saturation=0.2, hue=0.2),
-    #transforms.GaussianBlur(5),
+    transforms.ColorJitter(brightness=0.1, saturation=0.2, hue=0.2),
+    transforms.GaussianBlur(5),
     transforms.ToTensor(),
     transforms.Normalize(mean, std)
 ])
@@ -52,9 +54,9 @@ weights = [1.] * 27 + [20] * 9 + [1] * 24 + [20] * 8
 weights = torch.FloatTensor(weights)
 #print(weights)
 
-white = torch.Tensor([[[2.2489]], [[2.4286]], [[2.6400]]]).repeat(1, noise_size, noise_size)
+black = torch.Tensor([[[-2.1179]], [[-2.0357]], [[-1.8044]]]).repeat(1, noise_size, noise_size)
 #white = torch.Tensor([2.2489, 2.4286, 2.6400]).repeat(384, 384, 1)
-save_path = "./log/MobileNetv2_32centerloss"
+save_path = "./log/MobileNetv2_32_centerloss_aug_rot"
 
 os.makedirs(save_path, exist_ok=True)
 # Data loader
@@ -84,13 +86,16 @@ for epoch in range(max_epoch):
     train_loss, val_loss = 0., 0.
     if epoch < noise_epoch:
         for image, coords in tqdm(train_loader):
-            
+            angle_list = 90 * (2 * np.random.rand(len(image)) - 1)
+            for i in range(len(image)):
+                image[i] = rotate(image[i], angle_list[i])
+                coords[i] = rotate_coord(coords[i], angle_list[i])
             image, coords = image.cuda(), coords.cuda()
 
             output = model(image)
 
 
-            loss = criterion(output, coords) + centerLoss(output, coords)
+            loss = criterion(output, coords) + 0.2 * centerLoss(output, coords)
             
             train_loss += loss.item()
 
@@ -102,7 +107,11 @@ for epoch in range(max_epoch):
         for image, coords in tqdm(train_loader):
             
             # Patch mask
-            
+            angle_list = 90 * (2 * np.random.rand(len(image)) - 1)
+            for i in range(len(image)):
+                image[i] = rotate(image[i], angle_list[i])
+                coords[i] = rotate_coord(coords[i], angle_list[i])
+
             random_idxs = np.random.randint(0, 68, size=image.shape[0])
             for i in range(image.shape[0]):
                 x, y = coords[i][random_idxs[i]]
@@ -112,7 +121,7 @@ for epoch in range(max_epoch):
                 shift_y_low = max(shifting - y, 0)
                 shift_y_high = max(shifting - (image.shape[3] - 1 - y), 0)
 
-                image[i][:, x-shifting+shift_x_low-shift_x_high:x+shifting+1-shift_x_high+shift_x_low, y-shifting+shift_y_low-shift_y_high:y+shifting+1-shift_y_high+shift_y_low] = white
+                image[i][:, x-shifting+shift_x_low-shift_x_high:x+shifting+1-shift_x_high+shift_x_low, y-shifting+shift_y_low-shift_y_high:y+shifting+1-shift_y_high+shift_y_low] = black
             
 
             # Random binary mask
@@ -129,7 +138,7 @@ for epoch in range(max_epoch):
 
             output = model(image)
 
-            loss = criterion(output, coords) + centerLoss(output, coords)
+            loss = criterion(output, coords) + 0.2 * centerLoss(output, coords)
             
             train_loss += loss.item()
 
@@ -146,7 +155,7 @@ for epoch in range(max_epoch):
 
         with torch.no_grad():
             output = model(image)
-            loss = criterion(output, coords) + centerLoss(output, coords)
+            loss = criterion(output, coords) + 0.2 * centerLoss(output, coords)
             val_loss += loss.item()
 
             NME = evaluation(output, coords)

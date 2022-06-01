@@ -66,11 +66,11 @@ class CenterLoss(nn.Module):
     
     def forward(self, x, y):
         # (N, 68, 2)
-        face = torch.sum(torch.dist(torch.mean(x[:, 0:9, :], 1), torch.mean(y[:, 0:9, :], 1))) + torch.sum(torch.dist(torch.mean(x[:, 9:17, :], 1), torch.mean(y[:, 9:17, :], 1)))
-        eyebrow = torch.sum(torch.dist(torch.mean(x[:, 17:22, :], 1), torch.mean(y[:, 17:22, :], 1))) + torch.sum(torch.dist(torch.mean(x[:, 22:27, :], 1), torch.mean(y[:, 22:27, :], 1)))
-        nose = torch.sum(torch.dist(torch.mean(x[:, 27:36, :], 1), torch.mean(y[:, 27:36, :], 1)))
-        eye = torch.sum(torch.dist(torch.mean(x[:, 36:42, :], 1), torch.mean(y[:, 36:42, :], 1))) + torch.sum(torch.dist(torch.mean(x[:, 42:48, :], 1), torch.mean(y[:, 42:48, :], 1)))
-        mouth = torch.sum(torch.dist(torch.mean(x[:, 48:60, :], 1), torch.mean(y[:, 48:60, :], 1))) + torch.sum(torch.dist(torch.mean(x[:, 60:68, :], 1), torch.mean(y[:, 60:68, :], 1)))
+        face = torch.sum((torch.mean(x[:, 0:9, 0], 1) - torch.mean(y[:, 0:9, 0], 1)) ** 2 + (torch.mean(x[:, 0:9, 1], 1) - torch.mean(y[:, 0:9, 1], 1)) ** 2) + torch.sum((torch.mean(x[:, 9:17, 0], 1) - torch.mean(y[:, 9:17, 0], 1)) ** 2 + (torch.mean(x[:, 9:17, 1], 1) - torch.mean(y[:, 9:17, 1], 1)) ** 2)
+        eyebrow = torch.sum((torch.mean(x[:, 17:22, 0], 1) - torch.mean(y[:, 17:22, 0], 1)) ** 2 + (torch.mean(x[:, 17:22, 1], 1) - torch.mean(y[:, 17:22, 1], 1)) ** 2) + torch.sum((torch.mean(x[:, 22:27, 0], 1) - torch.mean(y[:, 22:27, 0], 1)) ** 2 + (torch.mean(x[:, 22:27, 1], 1) - torch.mean(y[:, 22:27, 1], 1)) ** 2)
+        nose = torch.sum((torch.mean(x[:, 27:36, 0], 1) - torch.mean(y[:, 27:36, 0], 1)) ** 2 + (torch.mean(x[:, 27:36, 1], 1) - torch.mean(y[:, 27:36, 1], 1)) ** 2)
+        eye = torch.sum((torch.mean(x[:, 36:42, 0], 1) - torch.mean(y[:, 36:42, 0], 1)) ** 2 + (torch.mean(x[:, 36:42, 1], 1) - torch.mean(y[:, 36:42, 1], 1)) ** 2) + torch.sum((torch.mean(x[:, 42:48, 0], 1) - torch.mean(y[:, 42:48, 0], 1)) ** 2 + (torch.mean(x[:, 42:48, 1], 1) - torch.mean(y[:, 42:48, 1], 1)) ** 2)
+        mouth = torch.sum((torch.mean(x[:, 48:60, 0], 1) - torch.mean(y[:, 48:60, 0], 1)) ** 2 + (torch.mean(x[:, 48:60, 1], 1) - torch.mean(y[:, 48:60, 1], 1)) ** 2) + torch.sum((torch.mean(x[:, 60:68, 0], 1) - torch.mean(y[:, 60:68, 0], 1)) ** 2 + (torch.mean(x[:, 60:68, 1], 1) - torch.mean(y[:, 60:68, 1], 1)) ** 2)
         
         dis = ( face + eyebrow + nose + eye + mouth ) / x.shape[0]
         return dis
