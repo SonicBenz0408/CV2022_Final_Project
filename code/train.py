@@ -54,9 +54,10 @@ weights = [1.] * 27 + [20] * 9 + [1] * 24 + [20] * 8
 weights = torch.FloatTensor(weights)
 #print(weights)
 
-black = torch.Tensor([[[-2.1179]], [[-2.0357]], [[-1.8044]]]).repeat(1, noise_size, noise_size)
+black = torch.FloatTensor([[[-2.1179]], [[-2.0357]], [[-1.8044]]]).repeat(1, noise_size, noise_size)
+white = torch.FloatTensor([[[2.2489]], [[2.4286]], [[2.6400]]]).repeat(1, noise_size, noise_size)
 #white = torch.Tensor([2.2489, 2.4286, 2.6400]).repeat(384, 384, 1)
-save_path = "./log/MobileNetv2_32_centerloss_aug_rot"
+save_path = "./log/MobileNetv2_32_centerloss_aug_norrot"
 
 os.makedirs(save_path, exist_ok=True)
 # Data loader
@@ -86,7 +87,7 @@ for epoch in range(max_epoch):
     train_loss, val_loss = 0., 0.
     if epoch < noise_epoch:
         for image, coords in tqdm(train_loader):
-            angle_list = 90 * (2 * np.random.rand(len(image)) - 1)
+            angle_list = np.random.randn(len(image)) * 20
             for i in range(len(image)):
                 image[i] = rotate(image[i], angle_list[i])
                 coords[i] = rotate_coord(coords[i], angle_list[i])
