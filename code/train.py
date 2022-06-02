@@ -54,7 +54,7 @@ weights = [1.] * 27 + [20] * 9 + [1] * 24 + [20] * 8
 weights = torch.FloatTensor(weights)
 #print(weights)
 
-black = torch.FloatTensor([[[-2.1179]], [[-2.0357]], [[-1.8044]]]).repeat(1, noise_size, noise_size)
+#black = torch.FloatTensor([[[-2.1179]], [[-2.0357]], [[-1.8044]]]).repeat(1, noise_size, noise_size)
 white = torch.FloatTensor([[[2.2489]], [[2.4286]], [[2.6400]]]).repeat(1, noise_size, noise_size)
 #white = torch.Tensor([2.2489, 2.4286, 2.6400]).repeat(384, 384, 1)
 save_path = "./log/MobileNetv2_32_centerloss_aug_norrot"
@@ -122,7 +122,7 @@ for epoch in range(max_epoch):
                 shift_y_low = max(shifting - y, 0)
                 shift_y_high = max(shifting - (image.shape[3] - 1 - y), 0)
 
-                image[i][:, x-shifting+shift_x_low-shift_x_high:x+shifting+1-shift_x_high+shift_x_low, y-shifting+shift_y_low-shift_y_high:y+shifting+1-shift_y_high+shift_y_low] = black
+                image[i][:, x-shifting+shift_x_low-shift_x_high:x+shifting+1-shift_x_high+shift_x_low, y-shifting+shift_y_low-shift_y_high:y+shifting+1-shift_y_high+shift_y_low] = white
             
 
             # Random binary mask

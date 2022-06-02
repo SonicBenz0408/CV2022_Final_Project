@@ -30,7 +30,7 @@ class WingLoss(nn.Module):
         small = torch.sum(self.gamma * torch.log(1 + dis[dis < self.gamma]/self.eps))
         large = torch.sum(dis[dis >= self.gamma] - (self.gamma - self.gamma * np.log(1 + self.gamma/self.eps)))
 
-        loss = small + large
+        loss = (small + large) / x.shape[0]
 
         return loss
 
