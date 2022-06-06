@@ -7,10 +7,11 @@ from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
+from dataset import Img_Dataset_train
 from dataset import Img_Dataset
 from pyramid import PyramidNet
 from loss import WingLoss, NMELoss, WeightedL2Loss, CenterLoss
-from torchvision.transforms.functional import rotate
+from torchvision.transforms.functional import rotate, hflip
 from rotation import rotate_coord
 
 # fix random seeds for reproducibility
@@ -27,8 +28,8 @@ val_path = "./data/aflw_val"
 mean, std = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
 
 train_tfms = transforms.Compose([
-    transforms.ColorJitter(brightness=0.1, saturation=0.2, hue=0.2),
-    transforms.GaussianBlur(5),
+    transforms.ColorJitter(brightness=0.2, saturation=0.2, hue=0.2),
+    #transforms.GaussianBlur(5),
     transforms.ToTensor(),
     transforms.Normalize(mean, std)
 ])
@@ -38,17 +39,19 @@ val_tfms = transforms.Compose([
     transforms.Normalize(mean, std)
 ])
 
-train_set = Img_Dataset(train_path, train_tfms)
+train_set = Img_Dataset_train(train_path, train_tfms)
 val_set = Img_Dataset(val_path, val_tfms)
 
 print("Dataset complete!")
 # Hyperparameters
 batch_size = 32
-learning_rate = 0.001
+learning_rate = 0.003
 max_epoch = 30
-noise_epoch = 1             
+noise_epoch = 0
 noise_size = 41
 shifting = noise_size // 2
+
+center_gamma = 0.1
 
 weights = [1.] * 27 + [20] * 9 + [1] * 24 + [20] * 8
 weights = torch.FloatTensor(weights)
@@ -57,7 +60,7 @@ weights = torch.FloatTensor(weights)
 #black = torch.FloatTensor([[[-2.1179]], [[-2.0357]], [[-1.8044]]]).repeat(1, noise_size, noise_size)
 white = torch.FloatTensor([[[2.2489]], [[2.4286]], [[2.6400]]]).repeat(1, noise_size, noise_size)
 #white = torch.Tensor([2.2489, 2.4286, 2.6400]).repeat(384, 384, 1)
-save_path = "./log/MobileNetv2_32_centerloss_aug_norrot"
+save_path = "./log/MobileNetv2_32_centerloss_crop"
 
 os.makedirs(save_path, exist_ok=True)
 # Data loader
@@ -69,7 +72,7 @@ print("Dataloader complete!")
 # Preparation
 model = PyramidNet().cuda()
 optimizer = torch.optim.Adam([{"params":model.parameters(), "initial_lr": learning_rate}], lr=learning_rate)
-scheduler = torch.optim.lr_scheduler.StepLR(optimizer, len(train_loader), 0.88)
+scheduler = torch.optim.lr_scheduler.StepLR(optimizer, len(train_loader)*3, 0.5)
 
 criterion = WingLoss()
 centerLoss = CenterLoss()
@@ -77,6 +80,7 @@ centerLoss = CenterLoss()
 #criterion = NMELoss()
 evaluation = NMELoss()
 
+best_NME = 100.
 train_loss_curve, val_loss_curve = [], []
 NME_curve = []
 print("Training Start!")
@@ -84,21 +88,40 @@ for epoch in range(max_epoch):
 
     model.train()
 
+    wing_loss, center_loss = 0., 0.
     train_loss, val_loss = 0., 0.
     if epoch < noise_epoch:
         for image, coords in tqdm(train_loader):
-            angle_list = np.random.randn(len(image)) * 20
+            #hflip_list = np.random.choice([True, False], size=len(image), p=[0.5, 0.5])
+            #angle_list = np.random.randn(len(image)) * 40
+            angle_list = 90 * (2 * np.random.rand(len(image)) - 1)
+
             for i in range(len(image)):
+                #plt.figure(0)
+                #plt.imshow(np.transpose(image[i], (1, 2, 0)))
+                #plt.scatter(coords[i, :, 0], coords[i, :, 1], c="g", s=2)
+                #if hflip_list[i]:
+                #    image[i] = hflip(image[i])
+                #    coords[i, :, 0] = 383 - coords[i, :, 0]
                 image[i] = rotate(image[i], angle_list[i])
                 coords[i] = rotate_coord(coords[i], angle_list[i])
-            image, coords = image.cuda(), coords.cuda()
 
+                #plt.figure(1)
+                #plt.imshow(np.transpose(image[i], (1, 2, 0)))
+                #plt.scatter(coords[i, :, 0], coords[i, :, 1], c="g", s=2)
+                #plt.show()
+            
+            image, coords = image.cuda(), coords.cuda()
+            
             output = model(image)
 
-
-            loss = criterion(output, coords) + 0.2 * centerLoss(output, coords)
+            wing_l = criterion(output, coords)
+            center_l = center_gamma * centerLoss(output, coords)
+            loss =  wing_l + center_l
             
             train_loss += loss.item()
+            wing_loss += wing_l
+            center_loss += center_l
 
             optimizer.zero_grad()
             loss.backward()
@@ -108,22 +131,32 @@ for epoch in range(max_epoch):
         for image, coords in tqdm(train_loader):
             
             # Patch mask
+            #hflip_list = np.random.choice([True, False], size=len(image), p=[0.5, 0.5])
             angle_list = 90 * (2 * np.random.rand(len(image)) - 1)
+            
             for i in range(len(image)):
+                #if hflip_list[i]:
+                #    image[i] = hflip(image[i])
+                #    coords[i, :, 0] = 383 - coords[i, :, 0]
                 image[i] = rotate(image[i], angle_list[i])
                 coords[i] = rotate_coord(coords[i], angle_list[i])
 
             random_idxs = np.random.randint(0, 68, size=image.shape[0])
+            
             for i in range(image.shape[0]):
                 x, y = coords[i][random_idxs[i]]
                 x, y = int(x.floor()), int(y.floor())
                 shift_x_low = max(shifting - x, 0)
-                shift_x_high = max(shifting - (image.shape[2] - 1 - x), 0)
+                shift_x_high = max(shifting - (383 - x), 0)
                 shift_y_low = max(shifting - y, 0)
-                shift_y_high = max(shifting - (image.shape[3] - 1 - y), 0)
+                shift_y_high = max(shifting - (383 - y), 0)
 
-                image[i][:, x-shifting+shift_x_low-shift_x_high:x+shifting+1-shift_x_high+shift_x_low, y-shifting+shift_y_low-shift_y_high:y+shifting+1-shift_y_high+shift_y_low] = white
-            
+                image[i][:, y-shifting+shift_y_low-shift_y_high:y+shifting+1-shift_y_high+shift_y_low, x-shifting+shift_x_low-shift_x_high:x+shifting+1-shift_x_high+shift_x_low] = white
+
+                #plt.figure(1)
+                #plt.imshow(np.transpose(image[i], (1, 2, 0)))
+                #plt.scatter(coords[i, :, 0], coords[i, :, 1], c="g", s=2)
+                #plt.show()
 
             # Random binary mask
             """
@@ -139,9 +172,13 @@ for epoch in range(max_epoch):
 
             output = model(image)
 
-            loss = criterion(output, coords) + 0.2 * centerLoss(output, coords)
+            wing_l = criterion(output, coords)
+            center_l = center_gamma * centerLoss(output, coords)
+            loss =  wing_l + center_l
             
             train_loss += loss.item()
+            wing_loss += wing_l
+            center_loss += center_l
 
             optimizer.zero_grad()
             loss.backward()
@@ -156,20 +193,30 @@ for epoch in range(max_epoch):
 
         with torch.no_grad():
             output = model(image)
-            loss = criterion(output, coords) + 0.2 * centerLoss(output, coords)
+
+            loss = criterion(output, coords) + center_gamma * centerLoss(output, coords)
+
             val_loss += loss.item()
 
             NME = evaluation(output, coords)
             NME_loss += NME.item()
-
-        torch.save(model.state_dict(), os.path.join(save_path, "last_model.pth"))
     
-    train_loss /= len(train_set)
-    val_loss /= len(val_set)
-    NME_loss /= len(val_set)
+    
+    train_loss /= len(train_loader)
+    wing_loss /= len(train_loader)
+    center_loss /= len(train_loader)
+    val_loss /= len(val_loader)
+    NME_loss /= len(val_loader)
 
-    log_content = f'Epoch: {epoch+1}/{max_epoch}, Training loss: {train_loss:.4f}, Validation loss: {val_loss:.4f}, NME: {NME_loss*100:.2f}%'
+    
+
+    log_content = f'Epoch: {epoch+1}/{max_epoch}, Training loss: {train_loss:.4f}, Validation loss: {val_loss:.4f}, NME: {NME_loss*100:.3f}%'
     print(log_content)
+    print(f'Wing loss: {wing_loss:.4f}, Center loss: {center_loss:.4f}')
+    if NME_loss < best_NME:
+        best_NME = NME_loss
+        torch.save(model.state_dict(), os.path.join(save_path, "last_model.pth"))
+        print("save best model.")
 
     with open(os.path.join(save_path,  "log.txt"), "a") as log_file:
         log_file.write(log_content)

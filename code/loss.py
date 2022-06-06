@@ -11,6 +11,7 @@ class NMELoss(nn.Module):
         dis = torch.sqrt(torch.sum(torch.pow(dis, 2), 2))
         dis = torch.mean(dis, 1)
         dis = torch.sum(dis) / 384
+        dis = dis / x.shape[0]
 
         return dis
 

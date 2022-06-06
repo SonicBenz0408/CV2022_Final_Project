@@ -35,13 +35,13 @@ with open(sol_path, "w"):
 mean, std = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
 
 val_tfms = transforms.Compose([
+    #transforms.GaussianBlur(3),
     transforms.ToTensor(),
     transforms.Normalize(mean, std)
 ])
 
 val_set = Img_Dataset(val_path, val_tfms)
 test_set = Img_Dataset(test_path, val_tfms, have_anno=False)
-
 val_names = val_set.names
 test_names = test_set.names
 
@@ -88,7 +88,7 @@ for image, coords in tqdm(val_loader):
 
 NME_loss /= len(val_set)
 
-print(f'NME: {NME_loss:.4f}')
+print(f'NME: {NME_loss:.7f}')
 
 # Testing
 print("Testing Start!")
