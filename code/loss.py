@@ -1,3 +1,4 @@
+from turtle import forward
 import numpy as np
 import torch.nn as nn
 import torch
@@ -75,3 +76,40 @@ class CenterLoss(nn.Module):
         
         dis = ( face + eyebrow + nose + eye + mouth ) / x.shape[0]
         return dis
+
+
+class RegressionLoss(nn.Module):
+    def __init__(self, anchors):
+        super(RegressionLoss, self).__init__()
+
+        self.anchors = anchors
+    
+    def forward(self, x, y, c):
+        anc = self.anchors.repeat(x.shape[0], 1, 1, 1).cuda()
+        
+        # (N, A, 68, 2)
+        offset_pred = x - anc
+        y = y.unsqueeze(dim=1).repeat_interleave(self.anchors.shape[0], dim=1)
+        offset_gt =  y - anc
+
+        loss = torch.sum(c * torch.sum(torch.abs(offset_pred - offset_gt), dim=(2, 3))) / x.shape[0]
+
+        return loss
+
+class ConfidenceLoss(nn.Module):
+    def __init__(self, anchors, beta=0.05):
+        super(ConfidenceLoss, self).__init__()
+
+        self.beta = beta
+        self.anchors = anchors
+    
+    def forward(self, y, c):
+        anc = self.anchors.repeat(y.shape[0], 1, 1, 1).cuda()
+        
+        y = y.unsqueeze(dim=1).repeat_interleave(self.anchors.shape[0], dim=1)
+        c_target =  torch.tanh((self.beta * 2 * 68) / torch.sum((torch.sum(( y - anc ) ** 2, dim=3) ** 0.5), dim=2))
+
+        loss = torch.sum(-c * torch.log(c_target) - (1 - c) * torch.log(1 - c_target)) / y.shape[0]
+
+        return loss
+        
