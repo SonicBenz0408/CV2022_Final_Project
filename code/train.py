@@ -67,7 +67,8 @@ val_loader = DataLoader(val_set, batch_size=1, shuffle=False)
 print("Dataloader complete!")
 
 # Preparation
-model = PyramidNet().cuda()
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+model = PyramidNet().to(device)
 optimizer = torch.optim.Adam([{"params":model.parameters(), "initial_lr": learning_rate}], lr=learning_rate)
 scheduler = torch.optim.lr_scheduler.StepLR(optimizer, len(train_loader), 0.88)
 
@@ -91,7 +92,7 @@ for epoch in range(max_epoch):
             for i in range(len(image)):
                 image[i] = rotate(image[i], angle_list[i])
                 coords[i] = rotate_coord(coords[i], angle_list[i])
-            image, coords = image.cuda(), coords.cuda()
+            image, coords = image.to(device), coords.to(device)
 
             output = model(image)
 
@@ -135,7 +136,7 @@ for epoch in range(max_epoch):
             image = torch.permute(image, (0, 3, 1, 2))
             """
 
-            image, coords = image.cuda(), coords.cuda()
+            image, coords = image.to(device), coords.to(device)
 
             output = model(image)
 
@@ -152,7 +153,7 @@ for epoch in range(max_epoch):
     NME_loss = 0.
     for image, coords in tqdm(val_loader):
         
-        image, coords = image.cuda(), coords.cuda()
+        image, coords = image.to(device), coords.to(device)
 
         with torch.no_grad():
             output = model(image)
