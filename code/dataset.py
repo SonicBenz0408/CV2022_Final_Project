@@ -62,7 +62,7 @@ class Img_Dataset(Dataset):
         
         return img, feat
 
-class Img_Dataset_train(Dataset):
+class Img_Dataset_clean(Dataset):
     def __init__(self, data_path, transforms, have_anno=True):
         
         if have_anno:
@@ -78,7 +78,7 @@ class Img_Dataset_train(Dataset):
             img = os.path.join(data_path, name)
             self.imgs.append(img)
 
-        self.transforms = transforms
+        self.transforms = transforms 
 
     def __len__(self):
         return len(self.imgs)
