@@ -4,7 +4,7 @@ import numpy as np
 from torchvision import transforms
 import matplotlib.pyplot as plt
 from dataset import Img_Dataset
-from torchvision.transforms.functional import rotate
+from torchvision.transforms.functional import rotate, affine
 from rotation import rotate_coord
 from torchvision.transforms import functional as F
 """
@@ -28,6 +28,10 @@ img[:, x-noise_size//2:x+noise_size//2+1, y-noise_size//2:y+noise_size//2+1] = w
 img = img.numpy()
 """
 
+a = torch.Tensor(np.reshape(np.arange(60), (3, 4, 5)))
+
+print(torch.cosine_similarity(a[:, 0, :], a[:, 1, :], dim=1))
+
 train_path = "./data/synthetics_train"
 mean, std = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
 
@@ -43,12 +47,11 @@ for i in range(100):
     img = train_set[i][0]
     coord = train_set[i][1]
     pad_size = 125
-    img = F.pad(img, pad_size)
-    top = np.random.random() * (2*pad_size)
-    left = np.random.random() * (2*pad_size)
-    coord[:, 0] += 150 - left
-    coord[:, 1] += 150 - top
-    img = F.crop(img, top, left, 384, 384)
+    h_shift = int(np.ceil(np.random.random() * (pad_size)))
+    v_shift = int(np.ceil(np.random.random() * (pad_size)))
+    coord[:, 0] += h_shift
+    coord[:, 1] += v_shift
+    img = affine(img, angle=0, translate=(h_shift, v_shift), scale=1.0, shear=(0.0, 0.0))
     plt.figure()
     plt.imshow(img)
     plt.scatter(coord[:, 0], coord[:, 1], c="g", s=2)

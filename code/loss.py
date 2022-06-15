@@ -108,7 +108,6 @@ class ConfidenceLoss(nn.Module):
         
         y = y.unsqueeze(dim=1).repeat_interleave(self.anchors.shape[0], dim=1)
         c_target =  torch.tanh((self.beta * 2 * 68) / torch.sum((torch.sum(( y - anc ) ** 2, dim=3) ** 0.5), dim=2))
-
         loss = torch.sum(-c * torch.log(c_target) - (1 - c) * torch.log(1 - c_target)) / y.shape[0]
 
         return loss

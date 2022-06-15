@@ -13,7 +13,7 @@ from pyramid import PyramidNet, AnchorPyramidNet
 from loss import WingLoss, NMELoss, WeightedL2Loss, CenterLoss, RegressionLoss, ConfidenceLoss
 from torchvision.transforms.functional import rotate, hflip, pad, crop, affine
 from rotation import rotate_coord
-from sklearn.cluster import KMeans
+from shufflenetv2 import ShuffleNetV2
 
 # fix random seeds for reproducibility
 SEED = 7414
@@ -45,6 +45,7 @@ val_set = Img_Dataset(val_path, val_tfms)
 
 print("Dataset complete!")
 
+"""
 # Anchor Generation
 k = 3
 all_feats = np.reshape(np.array(train_set.feats), (len(train_set.feats), 136))
@@ -64,6 +65,8 @@ for i in range(k):
         anchors.append(torch.unsqueeze(rotate_coord(clusters[i], 45 * j), 0))
 
 anchors = torch.cat(anchors)
+"""
+
 # Hyperparameters
 batch_size = 32
 learning_rate = 0.001
@@ -74,7 +77,7 @@ noise_size = 41
 shifting = noise_size // 2
 pad_size = 90
 
-center_gamma = 0.05
+center_gamma = 0.02
 conf_gamma = 0.5
 c_th = 0.6
 
@@ -85,7 +88,7 @@ weights = torch.FloatTensor(weights)
 #black = torch.FloatTensor([[[-2.1179]], [[-2.0357]], [[-1.8044]]]).repeat(1, noise_size, noise_size)
 white = torch.FloatTensor([[[2.2489]], [[2.4286]], [[2.6400]]]).repeat(1, noise_size, noise_size)
 #white = torch.Tensor([2.2489, 2.4286, 2.6400]).repeat(384, 384, 1)
-save_path = "./log/MobileNetv2_32_anchor"
+save_path = "./log/Mobilenetv2_16_gamma15"
 
 os.makedirs(save_path, exist_ok=True)
 # Data loader
@@ -95,18 +98,19 @@ val_loader = DataLoader(val_set, batch_size=1, shuffle=False)
 print("Dataloader complete!")
 
 # Preparation
-#model = PyramidNet().cuda()
-model = AnchorPyramidNet().cuda()
+#model = ShuffleNetV2().cuda()
+model = PyramidNet().cuda()
+#model = AnchorPyramidNet().cuda()
 optimizer = torch.optim.Adam([{"params":model.parameters(), "initial_lr": learning_rate}], lr=learning_rate)
-scheduler = torch.optim.lr_scheduler.StepLR(optimizer, len(train_loader)*10, 0.5)
+scheduler = torch.optim.lr_scheduler.StepLR(optimizer, len(train_loader)*8, 0.2)
 
-#criterion = WingLoss()
-#centerLoss = CenterLoss()
+criterion = WingLoss()
+centerLoss = CenterLoss()
 #criterion = WeightedL2Loss(weights=weights)
 #criterion = NMELoss()
 
-regLoss = RegressionLoss(anchors)
-confLoss = ConfidenceLoss(anchors)
+#regLoss = RegressionLoss(anchors)
+#confLoss = ConfidenceLoss(anchors)
 evaluation = NMELoss()
 
 best_NME = 100.
@@ -135,9 +139,9 @@ for epoch in range(max_epoch):
                     v_shift = int(np.ceil(np.random.random() * (pad_size)))
                     coords[i, :, 0] += h_shift
                     coords[i, :, 1] += v_shift
-                    image[i] = affine(image[i], translate=(h_shift, v_shift))
+                    image[i] = affine(image[i], angle=0, translate=(h_shift, v_shift), scale=1.0, shear=(0.0, 0.0))
 
-        angle_list = 180 * (2 * np.random.rand(len(image)) - 1)
+        angle_list = 120 * (2 * np.random.rand(len(image)) - 1)
         for i in range(len(image)):
             #plt.figure(0)
             #plt.imshow(np.transpose(image[i], (1, 2, 0)))
@@ -166,12 +170,10 @@ for epoch in range(max_epoch):
         image, coords = image.cuda(), coords.cuda()
         
         # (N, A, 68, 2), (N, A)
-        r_output, c_output = model(image)
+        #r_output, c_output = model(image)
         
-        loss = regLoss(r_output, coords, c_output) + conf_gamma * confLoss(coords, c_output)
+        #loss = regLoss(r_output, coords, c_output) + conf_gamma * confLoss(coords, c_output)
         
-
-        """
         output = model(image)
 
         wing_l = criterion(output, coords)
@@ -181,7 +183,7 @@ for epoch in range(max_epoch):
         train_loss += loss.item()
         wing_loss += wing_l
         center_loss += center_l
-        """
+        
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
@@ -195,18 +197,9 @@ for epoch in range(max_epoch):
 
         with torch.no_grad():
             
-            r_output, c_output = model(image)
-
-            loss = regLoss(r_output, coords, c_output) + conf_gamma * confLoss(coords, c_output)
-            
-            c_output[c_output < c_th] = 0.
-            
-            output = torch.sum(c_output * r_output, dim=1)
-            """
             output = model(image)
 
             loss = criterion(output, coords) + center_gamma * centerLoss(output, coords)
-            """
             val_loss += loss.item()
 
             NME = evaluation(output, coords)
@@ -214,8 +207,8 @@ for epoch in range(max_epoch):
     
     
     train_loss /= len(train_loader)
-    #wing_loss /= len(train_loader)
-    #center_loss /= len(train_loader)
+    wing_loss /= len(train_loader)
+    center_loss /= len(train_loader)
     val_loss /= len(val_loader)
     NME_loss /= len(val_loader)
 

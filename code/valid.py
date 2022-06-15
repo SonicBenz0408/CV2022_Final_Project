@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
 from dataset import Img_Dataset
-from pyramid import PyramidNet
+from pyramid import PyramidNet, SimPyramidNet
 from loss import WingLoss, NMELoss
 import argparse
 from PIL import Image
@@ -54,7 +54,7 @@ test_loader = DataLoader(test_set, batch_size=1, shuffle=False)
 print("Dataloader complete!")
 
 # Preparation
-model = PyramidNet()
+model = SimPyramidNet()
 model.load_state_dict(torch.load(args.model_path))
 evaluation = NMELoss() 
 
@@ -69,7 +69,7 @@ index = 0
 for image, coords in tqdm(val_loader):
     
     with torch.no_grad():
-        output = model(image)
+        output, _, _ = model(image)
 
         NME = evaluation(output, coords)
         image = image[0].numpy()
@@ -98,7 +98,7 @@ with open(sol_path, "w") as sol:
     for image, _ in tqdm(test_loader):
         
         with torch.no_grad():
-            output = model(image)
+            output, _, _ = model(image)
 
             image = image[0].numpy()
             predict = output[0].numpy()
